@@ -11,20 +11,20 @@ The learner uses a combination of SVM and XGBOOST. The SVM comes from WEKA libra
 so it needs to be compiled from sources on the intended platform and made available in the local maven repository. 
 
 
-## Compiling XGBOOST
+### Compiling XGBOOST
 
 1. checkout the whole package at https://github.com/dmlc/xgboost
 2. make sure that you have intalled gcc at least of a version 5 (especially on Mac OS),
 3. go to `xgboost/jvm-packages` and run `mvn install` (in case you have several gcc versions installed, you can make sure that the correct is used by using `export CXX=g++-5`)
 
 
-## Compiling this project
+### Compiling this project
 
 Provided that you successfully compiled XGBOOST java libs and placed them in your local repo, the compilation of this project is simple.
 If you intend to use this project as a library in a different project, doing simple mvn install will suffice. If you want to build a standalone jar that
-will contain all the dependencies in order to use it as a commandline tool (for instance for examlpes listed below), use the `fatjar` profile: ` mvn -P fatjar clean package `.
+will contain all the dependencies in order to use it as a commandline tool (for instance for examples listed below), use the `fatjar` profile: ` mvn -P fatjar clean package `.
 
-## Predicting using the trained model
+### Predicting using the trained model
 
 In the project you can find some version(s) of the already trained model. In order to use the model to predict a genre you can use a Predict class from the project, for example:
 
@@ -34,7 +34,7 @@ In the project you can find some version(s) of the already trained model. In ord
 The method will fetch the URL from the live web, parse and make prediction. There is also an API `String predict(byte[] htmlBytes, String url)` if you want to use this library rather programmatically.
 
 
-## Training a model
+### Training a model
 
 The model can be trained using a input in, for the moment, JSON, in this format:
 
