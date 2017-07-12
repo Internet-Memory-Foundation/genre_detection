@@ -1,0 +1,13 @@
+syntax: glob
+
+*.class
+target/*
+.idea/*
+*.iml
+cache/*
+dependency-reduced-pom.xml
+*.orig
+
+m.sh
+/dragonfly/productpageidentifier/src/test/resources/100sites/
+/dragonfly/productpageidentifier/target/test-classes/100sites/

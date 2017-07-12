@@ -4,6 +4,7 @@ import ml.dmlc.xgboost4j.java.Booster;
 import ml.dmlc.xgboost4j.java.DMatrix;
 import ml.dmlc.xgboost4j.java.XGBoost;
 import ml.dmlc.xgboost4j.java.XGBoostError;
+import net.internetmemory.util.scraping.HtmlUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.tuple.Triple;
@@ -18,6 +19,7 @@ import weka.core.converters.LibSVMSaver;
 import weka.filters.unsupervised.attribute.StringToWordVector;
 
 import java.io.*;
+import java.lang.reflect.Field;
 import java.net.URL;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -60,7 +62,9 @@ public class ClassificationWekaModel {
 		classifier.buildClassifier(trainData);
 		return classifier;
 	}
-	
+
+
+
 	private void createTrainData() throws Exception {
 		if (!initialized)
 			initialize();
@@ -144,11 +148,13 @@ public class ClassificationWekaModel {
 		Booster metaBooster = XGBoost.train(metaTrainingMat, metaParams, 50, metaWatchs, null, null);
 
 		//save model
-		Object[] toSerialize = new Object[]{nameStatisticsFeatures, urlModel, booster, metaBooster, currencies};
-		ObjectOutputStream oout = new ObjectOutputStream(new FileOutputStream(modelFolder + "model.bin"));
-		oout.writeObject(toSerialize);
-		oout.flush();
-		oout.close();
+//		Object[] toSerialize = new Object[]{nameStatisticsFeatures, urlModel, booster, metaBooster, currencies};
+//		ObjectOutputStream oout = new ObjectOutputStream(new FileOutputStream(modelFolder + "model.bin"));
+//		oout.writeObject(toSerialize);
+//		oout.flush();
+//		oout.close();
+		FileOutputStream fileOutputStream = new FileOutputStream(modelFolder + "model.bin");
+		writeModelToStream(nameStatisticsFeatures, urlModel, booster, metaBooster, currencies, fileOutputStream) ;
 
 		// evaluate model
 		float[][] resultXGB = booster.predict(testMat);
@@ -205,7 +211,34 @@ public class ClassificationWekaModel {
 					c, clsGroundTruth.get(c).intValue(), accx, accl, accm);
 		}
 	}
-	
+
+	private void writeModelToStream(
+			List<String> nameStatisticsFeatures,
+			Classifier urlModel,
+			Booster booster,
+			Booster metaBooster,
+			Set<String> currencies,
+			OutputStream outputStream) throws IOException, XGBoostError {
+
+		ObjectOutputStream objectOutputStream = null;
+		try {
+			objectOutputStream = new ObjectOutputStream(outputStream);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+
+		booster.saveModel(outputStream);
+		metaBooster.saveModel(outputStream);
+
+		objectOutputStream.writeObject(nameStatisticsFeatures);
+		objectOutputStream.writeObject(urlModel);
+		objectOutputStream.writeObject(currencies);
+
+		objectOutputStream.close();
+
+	}
+
 	private static void writeData(Instances instances, String fileName) throws IOException{
 		LibSVMSaver saverStat = new LibSVMSaver();
 		saverStat.setInstances(instances);
@@ -215,13 +248,34 @@ public class ClassificationWekaModel {
 
 
 	void loadModel(String modelPath) throws IOException, ClassNotFoundException, XGBoostError {
-		ObjectInput oin = new ObjectInputStream(new FileInputStream(modelPath));
+
+		FileInputStream fileInputStream = new FileInputStream(modelPath);
+
+		xgbModel = XGBoost.loadModel(fileInputStream);
+		metaModel = XGBoost.loadModel(fileInputStream);
+
+		ObjectInput oin = new ObjectInputStream(fileInputStream);
 		Object[] objects = (Object[]) oin.readObject();
 		this.nameStatisticsFeatures = (List<String>) objects[0];
 		this.urlModel = (Classifier) objects[1];
-		this.xgbModel = (Booster) objects[2];
-		this.metaModel = (Booster) objects[3];
-		this.currencies = (Set<String>) objects[4];
+//		this.xgbModel = (Booster) objects[2];
+//		this.metaModel = (Booster) objects[3];
+//		this.currencies = (Set<String>) objects[4];
+		this.currencies = (Set<String>) objects[2];
+	}
+
+	/**
+	 * Take byte representation of string and return string, try to detect encoding
+	 * @param bytes
+	 * @return
+	 */
+	public static String getStringFromBytesWithEncoding(byte[] bytes) {
+		String encoding = HtmlUtils.detectEncodingAlt(bytes);
+		try {
+			return  new String(bytes, encoding);
+		} catch (UnsupportedEncodingException e) {
+			return new String(bytes);
+		}
 	}
 
 	
@@ -229,7 +283,12 @@ public class ClassificationWekaModel {
 		String html;
 		InputStream in = new URL(url).openStream();
 		try {
-			html = IOUtils.toString(in);
+//			html = IOUtils.toString(in);
+			ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			IOUtils.copy(in, baos);
+			byte[] bytes = baos.toByteArray();
+			html = getStringFromBytesWithEncoding(bytes);
+
 		} finally {
 			IOUtils.closeQuietly(in);
 		}
@@ -237,7 +296,8 @@ public class ClassificationWekaModel {
 	}
 
 	String predict(byte[] htmlBytes, String url) throws Exception {
-		return predict(new String(htmlBytes), url);
+//		return predict(new String(htmlBytes), url);
+		return predict(getStringFromBytesWithEncoding(htmlBytes), url);
 	}
 
 	String predict(String htmlString, String url) throws Exception {
