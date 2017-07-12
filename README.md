@@ -18,14 +18,20 @@ so it needs to be compiled from sources on the intended platform and made availa
 3. go to `xgboost/jvm-packages` and run `mvn install` (in case you have several gcc versions installed, you can make sure that the correct is used by using `export CXX=g++-5`)
 
 
-## Using the model
+## Compiling this project
+
+Provided that you successfully compiled XGBOOST java libs and placed them in your local repo, the compilation of this project is simple.
+If you intend to use this project as a library in a different project, doing simple mvn install will suffice. If you want to build a standalone jar that
+will contain all the dependencies in order to use it as a commandline tool (for instance for examlpes listed below), use the `fatjar` profile: ` mvn -P fatjar clean package `.
+
+## Predicting using the trained model
 
 In the project you can find some version(s) of the already trained model. In order to use the model to predict a genre you can use a Predict class from the project, for example:
 
 > java -cp target/genre-classification-1.0-SNAPSHOT.jar net.internetmemory.genreclassification.Predict -modelPath resources/model-2017-07-12/model.bin -url http://www.zeit.de
 
 
-The method will fetch the URL from the live web, parse and make prediction. There is also an API for doing the same prediction on `byte[]` if you want to use library rather programmatically.
+The method will fetch the URL from the live web, parse and make prediction. There is also an API `String predict(byte[] htmlBytes, String url)` if you want to use this library rather programmatically.
 
 
 ## Training a model
