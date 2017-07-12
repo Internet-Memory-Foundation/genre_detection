@@ -44,6 +44,8 @@ public class Predict {
         ClassificationWekaModel model = new ClassificationWekaModel();
         model.loadModel(modelPath);
         model.predict(url);
+        model.destroy();
+
     }
 
 }

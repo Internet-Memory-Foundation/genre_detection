@@ -5,6 +5,7 @@ import ml.dmlc.xgboost4j.java.DMatrix;
 import ml.dmlc.xgboost4j.java.XGBoost;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 import net.internetmemory.util.scraping.HtmlUtils;
+import org.apache.commons.cli.*;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.tuple.Triple;
@@ -19,7 +20,6 @@ import weka.core.converters.LibSVMSaver;
 import weka.filters.unsupervised.attribute.StringToWordVector;
 
 import java.io.*;
-import java.lang.reflect.Field;
 import java.net.URL;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -30,19 +30,23 @@ public class ClassificationWekaModel {
 	private Booster metaModel;
 	private List<String> nameStatisticsFeatures = new ArrayList<>();
 	private JSONArray jsonArray;
-	static Set<String> currencies;
+	public static Set<String> currencies;
 	
 
 	private boolean initialized = false;
 
-	static final String modelFolder = "/home/jie/projects/GenreClassification/model/";
+//	static String modelFolder = "/home/jie/projects/GenreClassification/model/";
+	static String modelFolder = "/tmp/";
+	static String trainingJsonPath = "/home/jie/projects/GenreClassification/annotation_new.json";
+	static String currenciesFilePath = "/home/jie/projects/GenreClassification/model/currency.set";
 
-	static final List<String> classes = Arrays.asList("Forum", "News", "Blogs","Marketplace", "Spam", "Porn");
+	static List<String> classes = Arrays.asList("Forum", "News", "Blogs","Marketplace", "Spam", "Porn");
 
 	private void initialize() throws IOException, ClassNotFoundException {
-	    File annotation = new File("/home/jie/projects/GenreClassification/annotation_new.json");
-	    currencies = (Set<String>) new ObjectInputStream(
-				new FileInputStream("/home/jie/projects/GenreClassification/model/currency.set")).readObject();
+	    //File annotation = new File("/home/jie/projects/GenreClassification/annotation_new.json");
+		File annotation = new File(trainingJsonPath);
+		currencies = (Set<String>) new ObjectInputStream(
+				new FileInputStream(currenciesFilePath)).readObject();
 		String content = FileUtils.readFileToString(annotation);
 		jsonArray = new JSONArray(content);
 		initialized = true;
@@ -228,8 +232,16 @@ public class ClassificationWekaModel {
 		}
 
 
-		booster.saveModel(outputStream);
-		metaBooster.saveModel(outputStream);
+		ByteArrayOutputStream boosterBaos = new ByteArrayOutputStream();
+		booster.saveModel(boosterBaos);
+
+		objectOutputStream.writeObject(boosterBaos.toByteArray());
+
+
+		ByteArrayOutputStream metaBoosterBaos = new ByteArrayOutputStream();
+		metaBooster.saveModel(metaBoosterBaos);
+
+		objectOutputStream.writeObject(metaBoosterBaos.toByteArray());
 
 		objectOutputStream.writeObject(nameStatisticsFeatures);
 		objectOutputStream.writeObject(urlModel);
@@ -251,17 +263,23 @@ public class ClassificationWekaModel {
 
 		FileInputStream fileInputStream = new FileInputStream(modelPath);
 
-		xgbModel = XGBoost.loadModel(fileInputStream);
-		metaModel = XGBoost.loadModel(fileInputStream);
-
 		ObjectInput oin = new ObjectInputStream(fileInputStream);
-		Object[] objects = (Object[]) oin.readObject();
-		this.nameStatisticsFeatures = (List<String>) objects[0];
-		this.urlModel = (Classifier) objects[1];
-//		this.xgbModel = (Booster) objects[2];
-//		this.metaModel = (Booster) objects[3];
-//		this.currencies = (Set<String>) objects[4];
-		this.currencies = (Set<String>) objects[2];
+
+		xgbModel = XGBoost.loadModel(new ByteArrayInputStream((byte[])oin.readObject()));
+		metaModel = XGBoost.loadModel(new ByteArrayInputStream((byte[])oin.readObject()));
+
+		this.nameStatisticsFeatures = (List<String>) oin.readObject();
+		this.urlModel = (Classifier) oin.readObject();
+		this.currencies = (Set<String>) oin.readObject();
+
+//		Object[] objects = (Object[]) oin.readObject();
+//		int offset = 0;
+//		this.nameStatisticsFeatures = (List<String>) objects[0+offset];
+//		this.urlModel = (Classifier) objects[1+offset];
+////		this.xgbModel = (Booster) objects[2];
+////		this.metaModel = (Booster) objects[3];
+////		this.currencies = (Set<String>) objects[4];
+//		this.currencies = (Set<String>) objects[2+offset];
 	}
 
 	/**
@@ -326,11 +344,61 @@ public class ClassificationWekaModel {
 		System.out.printf("Predicted as:\t%s\n", result);
 		return result;
 	}
+
+
+	private void processInput(String[] args) throws ParseException, IOException {
+		Options options = new Options();
+		options.addOption("trainingPath", true, "path to JSON conrtaining training data");
+		options.addOption("modelPath", true, "folder path where models will be put");
+		options.addOption("currenciesPath", true, "path to file with currencies");
+		options.addOption("h", false, "display this help");
+
+		CommandLineParser parser = new DefaultParser();
+		CommandLine cmd = parser.parse(options, args);
+
+		if (cmd.hasOption("h")) {
+			HelpFormatter formatter = new HelpFormatter();
+			formatter.printHelp("Predict", options);
+			System.exit(1);
+		}
+
+		if (!cmd.hasOption("modelPath") || cmd.getOptionValue("modelPath").isEmpty()) {
+			System.out.println("Please specify model folder path.");
+			System.exit(1);
+		}
+
+		if(!cmd.hasOption("trainingPath") || cmd.getOptionValue("trainingPath").isEmpty()){
+			System.out.println("Please specify path to JSON with training data.");
+			System.exit(1);
+		}
+		if(!cmd.hasOption("currenciesPath") || cmd.getOptionValue("currenciesPath").isEmpty()){
+			System.out.println("Please specify path to currencies file.");
+			System.exit(1);
+		}
+
+		trainingJsonPath = cmd.getOptionValue("trainingPath");
+		modelFolder = cmd.getOptionValue("modelPath");
+		if (!modelFolder.endsWith("/"))
+			modelFolder+="/";
+		currenciesFilePath = cmd.getOptionValue("currenciesPath");
+	}
+
+	public void destroy() {
+		xgbModel.dispose();
+		metaModel.dispose();
+
+
+	}
 	
-	public static void main(String[] args) throws IOException {
+	public static void main(String[] args) throws IOException, ParseException {
 		ClassificationWekaModel modelBuilder = new ClassificationWekaModel();
+
+		modelBuilder.processInput(args);
+
+
 		try {
 			modelBuilder.createTrainData();
+			modelBuilder.destroy();
 		} catch (Exception e) {			
 			e.printStackTrace();
 		}
