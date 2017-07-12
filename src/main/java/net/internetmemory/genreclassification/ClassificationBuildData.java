@@ -106,6 +106,20 @@ class ClassificationBuildData {
 		return new DMatrix(ClassificationWekaModel.modelFolder+"metaTraining.libsvm");
 	}
 
+	static DMatrix buildTestMetaData(float[][] resultXGB, List<double[]> resultLR) throws IOException, XGBoostError{
+		double[] lr = resultLR.get(0);
+		float[] xgb = resultXGB[0];
+		float[] features = new float[xgb.length + lr.length + 1];
+		features[0] = 0f;
+		for(int i=0; i<xgb.length; i++){
+			features[i+1] = xgb[i];
+		}
+		for(int i=0; i<lr.length; i++){
+			features[i+1+xgb.length] = (float) lr[i];
+		}
+		return new DMatrix(features, 1, features.length);
+	}
+
 	private void makeInstances(List<String> listHtml, List<String> listLabel, List<ClassificationHTMLFeatures> listPage){
 		// html statistics features
 		makeStatisticsInstances("statistics_data", listHtml.size());

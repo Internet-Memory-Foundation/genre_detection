@@ -22,7 +22,7 @@ import java.net.URL;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class ClassificationWekaModel {
+public class ClassificationWekaModel implements Serializable{
 	private Booster xgbModel;
 	private Classifier urlModel;
 	private Booster metaModel;
@@ -255,15 +255,15 @@ public class ClassificationWekaModel {
 		DMatrix dmat = new DMatrix(features, 1, features.length);
 		float[][] probaXGB = xgbModel.predict(dmat, true);
 		List<double[]> probaBayes = Arrays.asList(urlModel.distributionForInstance(urlData.get(0)));
-		DMatrix toPredict = ClassificationBuildData.buildMetaData(probaXGB, probaBayes, Collections.singletonList(classes.get(0)));
+		DMatrix toPredict = ClassificationBuildData.buildTestMetaData(probaXGB, probaBayes);
 		//float[][] predictionXGB = xgbModel.predict(dmat);
 		//System.out.printf("Predicted by XGB as:\t%s\n", classes.get((int) predictionXGB[0][0]));
 		//Double predictionBayes = urlModel.classifyInstance(urlData.get(0));
 		//System.out.printf("Predicted by Bayes as:\t%s\n", classes.get(predictionBayes.intValue()));
 		//System.out.printf("Predicted by Meta as:\t%s\n", classes.get((int) metaModel.predict(toPredict)[0][0]));
 		String result = classes.get((int) metaModel.predict(toPredict)[0][0]);
-		System.out.println("URL: " + url);
-		System.out.printf("Predicted as:\t%s\n", result);
+		//System.out.println("URL: " + url);
+		//System.out.printf("Predicted as:\t%s\n", result);
 		return result;
 	}
 	
