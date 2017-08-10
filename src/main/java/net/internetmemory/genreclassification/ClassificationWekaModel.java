@@ -1,5 +1,7 @@
 package net.internetmemory.genreclassification;
 
+import net.internetmemory.util.scraping.HtmlUtils;
+import org.apache.commons.cli.*;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
@@ -29,15 +31,19 @@ public class ClassificationWekaModel implements Serializable{
 
 	private boolean initialized = false;
 
-	private static final String modelFolder = "/home/jie/projects/GenreClassification/model/";
+//	static String modelFolder = "/home/jie/projects/GenreClassification/model/";
+	static String modelFolder = "/tmp/";
+	static String trainingJsonPath = "/home/jie/projects/GenreClassification/annotation_new.json";
+	static String currenciesFilePath = "/home/jie/projects/GenreClassification/model/currency.set";
 
 	static final List<String> otherClasses = Arrays.asList("Forum", "News", "Blogs","Marketplace", "Spam");
 	static final List<String> pornClasses = Arrays.asList("Porn", "Non-Porn");
 
 	private void initialize() throws IOException, ClassNotFoundException {
-	    File annotation = new File("/home/jie/projects/GenreClassification/annotation_new.json");
-	    currencies = (Set<String>) new ObjectInputStream(
-				new FileInputStream("/home/jie/projects/GenreClassification/model/currency.set")).readObject();
+	    //File annotation = new File("/home/jie/projects/GenreClassification/annotation_new.json");
+		File annotation = new File(trainingJsonPath);
+		currencies = (Set<String>) new ObjectInputStream(
+				new FileInputStream(currenciesFilePath)).readObject();
 		String content = FileUtils.readFileToString(annotation);
 		jsonArray = new JSONArray(content);
 		initialized = true;
@@ -130,20 +136,54 @@ public class ClassificationWekaModel implements Serializable{
 		currencies = (Set<String>) objects[4];
 	}
 
+    /**
+     * Take byte representation of string and return string, try to detect encoding
+     * @param bytes
+     * @return
+     */
+    public static String getStringFromBytesWithEncoding(byte[] bytes) {
+        String encoding = HtmlUtils.detectEncodingAlt(bytes);
+        try {
+            return  new String(bytes, encoding);
+        } catch (UnsupportedEncodingException e) {
+            return new String(bytes);
+        }
+    }
+
+    String getStringPrediction(double[] proba){
+    	if(proba[5] > 0.5){
+    		return "Porn";
+		}else{
+    		double maxi = 0;
+    		int maxIndex = 0;
+    		for(int i=0; i<5; i++){
+    			if(proba[i] > maxi){
+    				maxIndex = i;
+    				maxi = proba[i];
+				}
+			}
+			return otherClasses.get(maxIndex);
+		}
+	}
+
 	
-	double[] predict(String url) throws Exception {
+	String predict(String url) throws Exception {
 		String html;
 		InputStream in = new URL(url).openStream();
 		try {
-			html = IOUtils.toString(in);
+			ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			IOUtils.copy(in, baos);
+			byte[] bytes = baos.toByteArray();
+			html = getStringFromBytesWithEncoding(bytes);
+
 		} finally {
 			IOUtils.closeQuietly(in);
 		}
-		return predict(html, url);
+		return getStringPrediction(predict(html, url));
 	}
 
-	double[] predict(byte[] htmlBytes, String url) throws Exception {
-		return predict(new String(htmlBytes), url);
+	String predict(byte[] htmlBytes, String url) throws Exception {
+		return getStringPrediction(predict(getStringFromBytesWithEncoding(htmlBytes), url));
 	}
 
 	double[] predict(String htmlString, String url) throws Exception {
@@ -175,12 +215,54 @@ public class ClassificationWekaModel implements Serializable{
 		System.out.printf("Predicted as:\t%s\n", result);
 		return proba;
 	}
-	
-	public static void main(String[] args) throws IOException {
+
+
+	private void processInput(String[] args) throws ParseException, IOException {
+		Options options = new Options();
+		options.addOption("trainingPath", true, "path to JSON conrtaining training data");
+		options.addOption("modelPath", true, "folder path where models will be put");
+		options.addOption("currenciesPath", true, "path to file with currencies");
+		options.addOption("h", false, "display this help");
+
+		CommandLineParser parser = new DefaultParser();
+		CommandLine cmd = parser.parse(options, args);
+
+		if (cmd.hasOption("h")) {
+			HelpFormatter formatter = new HelpFormatter();
+			formatter.printHelp("Predict", options);
+			System.exit(1);
+		}
+
+		if (!cmd.hasOption("modelPath") || cmd.getOptionValue("modelPath").isEmpty()) {
+			System.out.println("Please specify model folder path.");
+			System.exit(1);
+		}
+
+		if(!cmd.hasOption("trainingPath") || cmd.getOptionValue("trainingPath").isEmpty()){
+			System.out.println("Please specify path to JSON with training data.");
+			System.exit(1);
+		}
+		if(!cmd.hasOption("currenciesPath") || cmd.getOptionValue("currenciesPath").isEmpty()){
+			System.out.println("Please specify path to currencies file.");
+			System.exit(1);
+		}
+
+		trainingJsonPath = cmd.getOptionValue("trainingPath");
+		modelFolder = cmd.getOptionValue("modelPath");
+		if (!modelFolder.endsWith("/"))
+			modelFolder+="/";
+		currenciesFilePath = cmd.getOptionValue("currenciesPath");
+	}
+
+	public static void main(String[] args) throws IOException, ParseException {
 		ClassificationWekaModel modelBuilder = new ClassificationWekaModel();
+
+		modelBuilder.processInput(args);
+
+
 		try {
 			modelBuilder.createTrainData();
-		} catch (Exception e) {			
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}

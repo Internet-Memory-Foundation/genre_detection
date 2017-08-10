@@ -8,6 +8,14 @@
     <artifactId>genre-classification</artifactId>
     <version>1.0-SNAPSHOT</version>
 
+    <!--<repositories>-->
+        <!--<repository>-->
+            <!--<id>imthirdparty</id>-->
+            <!--<name>imthirdparty</name>-->
+            <!--<url>http://artifactory.internetmemory.org:8081/artifactory/imthirdparty</url>-->
+        <!--</repository>-->
+    <!--</repositories>-->
+
     <profiles>
         <profile>
             <id>fatjar</id>
@@ -94,6 +102,12 @@
             <artifactId>xgboost4j</artifactId>
             <version>0.7</version>
         </dependency>
+        <!--<dependency>-->
+            <!--<groupId>ml.dmlc</groupId>-->
+            <!--<artifactId>xgboost-jvm</artifactId>-->
+            <!--<version>0.7</version>-->
+            <!--<type>pom</type>-->
+        <!--</dependency>-->
 
         <!-- https://mvnrepository.com/artifact/org.apache.commons/commons-lang3 -->
         <dependency>
@@ -128,6 +142,27 @@
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
             <version>3.17-beta1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.21</version>
+        </dependency>
+        <dependency>
+            <groupId>net.sourceforge.jchardet</groupId>
+            <artifactId>jchardet</artifactId>
+            <version>1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.googlecode.juniversalchardet</groupId>
+            <artifactId>juniversalchardet</artifactId>
+            <version>1.0.3</version>
+        </dependency>
+
+        <dependency>
+            <groupId>xml-apis</groupId>
+            <artifactId>xml-apis-ext</artifactId>
+            <version>1.3.04</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/org.apache.spark/spark-core_2.10 -->
