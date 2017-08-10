@@ -1,5 +1,6 @@
 package net.internetmemory.genreclassification;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -7,6 +8,8 @@ import org.jsoup.nodes.Node;
 import org.jsoup.select.Elements;
 import org.jsoup.select.NodeVisitor;
 
+import java.io.File;
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
@@ -22,11 +25,14 @@ class ClassificationHTMLFeatures {
 	private String tokenizedURL;
 	private Pattern notLetter = Pattern.compile("\\W+");
 	private Pattern yearPattern = Pattern.compile("(199|200|201)\\d{1,5}");
+	private static Set<String> pornKeyWordSet = new HashSet<>();
 
-	ClassificationHTMLFeatures(Document doc, String url){
+	ClassificationHTMLFeatures(Document doc, String url) throws IOException {
 		this.url = url;
 		this.htmlParsed = doc;
-	}	
+		List<String> pornKeyWords = FileUtils.readLines(new File("/home/jie/projects/GenreClassification/badwords.txt"));
+		pornKeyWordSet.addAll(pornKeyWords.stream().map(String::toLowerCase).collect(Collectors.toList()));
+	}
 		
 	Hashtable<String,Double> getCountTags(){
 		return this.countTags;
@@ -45,46 +51,14 @@ class ClassificationHTMLFeatures {
 	 * @throws Exception
 	 */
 	void computeHTMLFeatures() throws Exception{
-		URLTokenizerGenreClassification();
 		countTagStatistics();
 		htmlGlobalTagStatistics();
 		tagInHeadStatistics();
 		htmlStatisticsDiv();
 		htmlStaticsticsParagraphs();
+		htmlKeyWords();
 		normalizeData();
 	}
-
-	/**
-	 * tokenize URL
-	 */
-	private void URLTokenizerGenreClassification(){
-		List<String> urlElements = new ArrayList<>();
-		String urlCleaned = "";
-		if(url.contains("://")){
-			urlCleaned = url.split("://")[1];
-		}
-		String[] splittedUrl = urlCleaned.split("/", 2);
-		String pld = splittedUrl[0];
-		List<String> parts;
-		Set<String> toFilter = new HashSet<>(Arrays.asList("www", "co", "wwws", "com"));
-		if(StringUtils.countMatches(pld, ".") > 1){
-			parts = Arrays.asList(pld.split("\\."));
-			parts = parts.subList(0, parts.size() - 1).stream()
-					.filter(part -> !toFilter.contains(part))
-					.map(part -> StringUtils.join(notLetter.split(part), " "))
-					.collect(Collectors.toList());
-		}else{
-			parts = Collections.singletonList(pld.split("\\.")[0]);
-		}
-		urlElements.addAll(parts);
-		if(splittedUrl.length > 1 && !splittedUrl[1].equals("")) {
-			String suffix = splittedUrl[1].split("\\.")[0];
-			suffix = yearPattern.matcher(suffix).replaceAll("yearpattern");
-			urlElements.addAll(Arrays.asList(notLetter.split(suffix)));
-		}
-		this.tokenizedURL = StringUtils.join(urlElements, " ");
-	}
-
 
 	/**
 	 * count HTML tags represent in a web page
@@ -161,8 +135,9 @@ class ClassificationHTMLFeatures {
 		int nbLinkSameDomain = 0;
 		int nbLinkOutside = 0;
 		int nbHrefJavascript = 0;
-		String domain = new URL(url).getHost();
+		String domain = new URL(url).getHost().toLowerCase();
 		for(String link: anchorLinks){
+			link = link.toLowerCase();
 			nbYearAnchorLink += ClassificationGeneralFunctions.countNbOfYears(link);
 			if(link.startsWith("http")){
 				if(link.contains(domain)) {
@@ -172,7 +147,7 @@ class ClassificationHTMLFeatures {
 				}
 			}
 			else{
-				if(link.toLowerCase().startsWith("javascript")){
+				if(link.startsWith("javascript")){
 					nbHrefJavascript += 1;
 				}else {
 					nbLinkSameDomain += 1;
@@ -408,6 +383,45 @@ class ClassificationHTMLFeatures {
 		option.put("p", true);
 		textStatisticsElements(listP, "p", option);
 		computeElementstatistics(listP, "p", option);
+	}
+
+	private void htmlKeyWords(){
+		htmlStatistics.put("blog_in_url", url.toLowerCase().contains("blog") ? 1. : 0.);
+		htmlStatistics.put("news_in_url", url.toLowerCase().contains("news") ? 1. : 0.);
+		htmlStatistics.put("forum_in_url", url.toLowerCase().contains("forum") ? 1. : 0.);
+		htmlStatistics.put("thread_in_url", url.toLowerCase().contains("thread") ? 1. : 0.);
+		htmlStatistics.put("date_in_url", yearPattern.matcher(url.toLowerCase()).find() ? 1. : 0.);
+		int numPornKeywordInURL = 0;
+		for(String pornKeyword: pornKeyWordSet){
+			numPornKeywordInURL += StringUtils.countMatches(url.toLowerCase(), pornKeyword);
+		}
+		htmlStatistics.put("porn_keyword_in_url", (double)numPornKeywordInURL);
+
+		int numPornKeywordInTitle = 0;
+		String[] titleTokens = htmlParsed.getElementsByTag("title").text().toLowerCase().replaceAll("\\p{P}", " ").split("\\s+");
+		for(String pornKeyword: pornKeyWordSet){
+			for(String token: titleTokens) {
+				if(token.equals(pornKeyword)){
+					numPornKeywordInTitle += 1;
+				}
+			}
+		}
+		htmlStatistics.put("porn_keyword_in_title", (double)numPornKeywordInTitle);
+
+		String fullText = htmlParsed.text();
+		int numPornKeyWord = 0;
+		Set<String> foundKeyword = new HashSet<>();
+		String[] tokens = fullText.toLowerCase().replaceAll("\\p{P}", " ").split("\\s+");
+		for(String pornKeyWord: pornKeyWordSet){
+			for(String token: tokens){
+				numPornKeyWord += token.equals(pornKeyWord) ? 1 : 0;
+				if(token.equals(pornKeyWord)){
+					foundKeyword.add(pornKeyWord);
+				}
+			}
+		}
+		//foundKeyword.forEach(System.out::println);
+		htmlStatistics.put("num_porn_keyword", (double)numPornKeyWord);
 	}
 	
 
