@@ -16,6 +16,8 @@ import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static net.internetmemory.genreclassification.ClassificationWekaModel.pornKeyWordSet;
+
 class ClassificationHTMLFeatures {
 	
 	private String url;
@@ -25,13 +27,10 @@ class ClassificationHTMLFeatures {
 	private String tokenizedURL;
 	private Pattern notLetter = Pattern.compile("\\W+");
 	private Pattern yearPattern = Pattern.compile("(199|200|201)\\d{1,5}");
-	private static Set<String> pornKeyWordSet = new HashSet<>();
 
 	ClassificationHTMLFeatures(Document doc, String url) throws IOException {
 		this.url = url;
 		this.htmlParsed = doc;
-		List<String> pornKeyWords = FileUtils.readLines(new File("/home/jie/projects/GenreClassification/badwords.txt"));
-		pornKeyWordSet.addAll(pornKeyWords.stream().map(String::toLowerCase).collect(Collectors.toList()));
 	}
 		
 	Hashtable<String,Double> getCountTags(){

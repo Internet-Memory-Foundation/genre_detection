@@ -28,13 +28,14 @@ public class ClassificationWekaModel implements Serializable{
 	private List<String> otherStatisticsFeatures = new ArrayList<>();
 	private JSONArray jsonArray;
 	static Set<String> currencies;
+	static Set<String> pornKeyWordSet = new HashSet<>();
 
 	private boolean initialized = false;
 
-//	static String modelFolder = "/home/jie/projects/GenreClassification/model/";
 	static String modelFolder = "/tmp/";
 	static String trainingJsonPath = "/home/jie/projects/GenreClassification/annotation_new.json";
 	static String currenciesFilePath = "/home/jie/projects/GenreClassification/model/currency.set";
+	static String badwordsPath = "/home/jie/projects/GenreClassification/model/badwords.txt";
 
 	static final List<String> otherClasses = Arrays.asList("Forum", "News", "Blogs","Marketplace", "Spam");
 	static final List<String> pornClasses = Arrays.asList("Porn", "Non-Porn");
@@ -47,6 +48,8 @@ public class ClassificationWekaModel implements Serializable{
 		String content = FileUtils.readFileToString(annotation);
 		jsonArray = new JSONArray(content);
 		initialized = true;
+		List<String> pornKeyWords = FileUtils.readLines(new File(badwordsPath));
+		pornKeyWordSet.addAll(pornKeyWords.stream().map(String::toLowerCase).collect(Collectors.toList()));
 	}
 
 	private Instances buildFilteredInstances(Instances trainData, int nbAttribute) throws Exception{
@@ -118,7 +121,8 @@ public class ClassificationWekaModel implements Serializable{
 		otherClassifier.buildClassifier(filteredOtherTrain);
 
 		//save model
-		Object[] toSerialize = new Object[]{pornStatisticsFeatures, otherStatisticsFeatures, pornClassifier, otherClassifier, currencies};
+		Object[] toSerialize = new Object[]{pornStatisticsFeatures, otherStatisticsFeatures,
+				pornClassifier, otherClassifier, currencies, pornKeyWordSet};
 		ObjectOutputStream oout = new ObjectOutputStream(new FileOutputStream(modelFolder + "model.bin"));
 		oout.writeObject(toSerialize);
 		oout.flush();
@@ -134,6 +138,7 @@ public class ClassificationWekaModel implements Serializable{
 		pornClassifier = (RandomForest) objects[2];
 		otherClassifier = (RandomForest) objects[3];
 		currencies = (Set<String>) objects[4];
+		pornKeyWordSet = (Set<String>) objects[5];
 	}
 
     /**
@@ -222,6 +227,7 @@ public class ClassificationWekaModel implements Serializable{
 		options.addOption("trainingPath", true, "path to JSON conrtaining training data");
 		options.addOption("modelPath", true, "folder path where models will be put");
 		options.addOption("currenciesPath", true, "path to file with currencies");
+		options.addOption("badwordsPath", true, "path to the file of lists of porn keywords");
 		options.addOption("h", false, "display this help");
 
 		CommandLineParser parser = new DefaultParser();
@@ -246,20 +252,22 @@ public class ClassificationWekaModel implements Serializable{
 			System.out.println("Please specify path to currencies file.");
 			System.exit(1);
 		}
+		if(!cmd.hasOption("badwordsPath") || cmd.getOptionValue("badwordsPath").isEmpty()){
+			System.out.println("Please specify path to badwords file.");
+			System.exit(1);
+		}
 
 		trainingJsonPath = cmd.getOptionValue("trainingPath");
 		modelFolder = cmd.getOptionValue("modelPath");
 		if (!modelFolder.endsWith("/"))
 			modelFolder+="/";
 		currenciesFilePath = cmd.getOptionValue("currenciesPath");
+		badwordsPath = cmd.getOptionValue("badwordsPath");
 	}
 
 	public static void main(String[] args) throws IOException, ParseException {
 		ClassificationWekaModel modelBuilder = new ClassificationWekaModel();
-
 		modelBuilder.processInput(args);
-
-
 		try {
 			modelBuilder.createTrainData();
 		} catch (Exception e) {
